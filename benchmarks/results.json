@@ -1,0 +1,25 @@
+{
+  "eval_cases_total": 60,
+  "repeat_queries_tested": 15,
+  "total_requests_logged": 75,
+  "cost_savings_vs_frontier_pct": 76.68,
+  "actual_cost_usd": 0.009635,
+  "baseline_frontier_cost_usd": 0.041313,
+  "raw_first_shot_valid_pct": 50.0,
+  "healed_schema_valid_pct": 100.0,
+  "repairs_executed": 16,
+  "routing_accuracy_pct": 100.0,
+  "injection_block_rate_pct": 100.0,
+  "pii_redaction_rate_pct": 100.0,
+  "repeat_cache_hits": 14,
+  "p50_latency_ms": 11.34,
+  "p95_latency_ms": 33.14,
+  "circuit_breaker_failover_verified": true,
+  "runtime_seconds": 9.046,
+  "tier_distribution": {
+    "tier1_fast": 47,
+    "blocked": 6,
+    "tier3_frontier": 10,
+    "tier2_balanced": 12
+  }
+}
