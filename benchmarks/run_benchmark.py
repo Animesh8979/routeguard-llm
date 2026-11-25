@@ -10,11 +10,13 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from benchmarks.pareto_chart import render_pareto_chart
 from routeguard.cache import SemanticCache
 from routeguard.eval_harness import GatewayRuntime, handle_request, run_eval_suite
 from routeguard.ledger import TelemetryLedger
 from routeguard.providers import DeterministicReplayProvider
 from routeguard.router import CircuitBreakerRegistry, HybridComplexityRouter
+from routeguard.routerbench_eval import run_routerbench_ood_eval
 
 
 def run_benchmark(out_dir: str | Path = "data_runtime/bench_run") -> dict:
@@ -46,6 +48,10 @@ def run_benchmark(out_dir: str | Path = "data_runtime/bench_run") -> dict:
         use_cache=False,
     )
 
+    ood_eval = run_routerbench_ood_eval()
+    pareto_png = render_pareto_chart(ood_eval, root / "docs" / "assets" / "routeguard_pareto.png")
+    rec_pt = ood_eval["recommended_operating_point"]
+
     lm = eval_res["ledger_metrics"]
     results = {
         "eval_cases_total": eval_res["eval_cases_total"],
@@ -66,22 +72,25 @@ def run_benchmark(out_dir: str | Path = "data_runtime/bench_run") -> dict:
         "circuit_breaker_failover_verified": bool(failover_out["failover_used"] and failover_out["schema_valid"] and failover_out["tier_selected"] == "tier2_balanced"),
         "runtime_seconds": elapsed_sec,
         "tier_distribution": lm["tier_distribution"],
+        "routerbench_ood": ood_eval,
+        "pareto_png": str(pareto_png),
     }
 
     bench_dir = root / "benchmarks"
     (bench_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    gpt4_acc = ood_eval["baselines"]["gpt-4-1106-preview"]["accuracy_pct"]
     md = [
-        "# RouteGuard Benchmark Results (60-Case Golden Eval + Cache Pass)",
+        "# RouteGuard Benchmark Results (RouterBench OOD + Guardrail CI)",
         "",
-        "| Metric | Measured Value |",
+        "| Suite / Metric | Measured Value |",
         "|---|---:|",
-        f"| Golden Eval Suite Cases | {results['eval_cases_total']} (+{results['repeat_queries_tested']} repeat cache probes) |",
-        f"| Cost Reduction vs Always-Frontier | {results['cost_savings_vs_frontier_pct']:.2f}% |",
-        f"| Routing Tier Accuracy | {results['routing_accuracy_pct']:.2f}% |",
-        f"| Schema Validity (Raw Cold Shot -> Healed) | {results['raw_first_shot_valid_pct']:.2f}% -> {results['healed_schema_valid_pct']:.2f}% |",
-        f"| Self-Healing Repairs Executed | {results['repairs_executed']} |",
-        f"| Prompt-Injection Block Rate | {results['injection_block_rate_pct']:.2f}% |",
-        f"| PII Redaction Rate | {results['pii_redaction_rate_pct']:.2f}% |",
+        f"| Public OOD Dataset (`withmartian/routerbench`) | {ood_eval['train_cases']} train / {ood_eval['test_cases']} held-out test prompts |",
+        f"| RouteGuard OOD Operating Point (`margin=0.25`) | {rec_pt['accuracy_pct']:.2f}% accuracy vs Always-GPT-4 {gpt4_acc:.2f}% |",
+        f"| Held-Out Cost Reduction vs Always-GPT-4 | {rec_pt['cost_savings_vs_gpt4_pct']:.2f}% (`${rec_pt['total_cost_usd']:.4f}` vs `${ood_eval['baselines']['gpt-4-1106-preview']['total_cost_usd']:.4f}`) |",
+        f"| Deterministic Regression Suite (+ Cache Probes) | {results['eval_cases_total']} (+{results['repeat_queries_tested']} repeat probes) |",
+        f"| Proxy Regression Cost Reduction | {results['cost_savings_vs_frontier_pct']:.2f}% |",
+        f"| Schema Validity (Cold Shot -> Self-Healed) | {results['raw_first_shot_valid_pct']:.2f}% -> {results['healed_schema_valid_pct']:.2f}% ({results['repairs_executed']} repairs) |",
+        f"| Prompt-Injection Block / PII Redaction | {results['injection_block_rate_pct']:.2f}% / {results['pii_redaction_rate_pct']:.2f}% |",
         f"| Repeat Semantic Cache Hit Rate | {results['repeat_cache_hits']}/{results['repeat_queries_tested']} |",
         f"| Proxy Overhead Latency (p50 / p95) | {results['p50_latency_ms']} ms / {results['p95_latency_ms']} ms |",
         f"| Circuit-Breaker Failover Verified | {results['circuit_breaker_failover_verified']} |",

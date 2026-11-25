@@ -1,11 +1,14 @@
 """OpenAI-compatible FastAPI proxy exposing cost routing, self-healing extraction, metrics, and CI eval."""
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
-from typing import Any, Optional
+import time
+from typing import Any, Iterator, Optional
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from routeguard.cache import SemanticCache
@@ -40,10 +43,22 @@ def _get_runtime() -> GatewayRuntime:
 
 
 class ChatCompletionRequest(BaseModel):
-    prompt: str = Field(min_length=1)
+    prompt: Optional[str] = None
+    messages: Optional[list[dict[str, Any]]] = None
     tenant_id: str = "default"
     force_tier: Optional[str] = None
     use_cache: bool = True
+    stream: bool = False
+
+    def resolve_prompt(self) -> str:
+        if self.prompt and self.prompt.strip():
+            return self.prompt
+        if self.messages:
+            parts = [str(m.get("content") or "").strip() for m in self.messages if isinstance(m, dict) and m.get("content")]
+            joined = "\n".join(parts).strip()
+            if joined:
+                return joined
+        raise HTTPException(status_code=422, detail="Either non-empty `prompt` or `messages` is required.")
 
 
 class ExtractRequest(BaseModel):
@@ -64,17 +79,52 @@ def health() -> dict[str, Any]:
 def chat_completions(
     req: ChatCompletionRequest,
     x_routeguard_key: Optional[str] = Header(default=None),
-) -> dict[str, Any]:
+) -> Any:
     _enforce_key(x_routeguard_key)
-    if len(req.prompt) > MAX_PROMPT_CHARS:
+    prompt_txt = req.resolve_prompt()
+    if len(prompt_txt) > MAX_PROMPT_CHARS:
         raise HTTPException(status_code=413, detail=f"Prompt exceeds MAX_PROMPT_CHARS={MAX_PROMPT_CHARS}.")
     rt = _get_runtime()
     try:
-        out = handle_request(rt, prompt=req.prompt, tenant_id=req.tenant_id, force_tier=req.force_tier, use_cache=req.use_cache)
+        out = handle_request(rt, prompt=prompt_txt, tenant_id=req.tenant_id, force_tier=req.force_tier, use_cache=req.use_cache)
     except BudgetExceededError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     if out.get("blocked"):
         raise HTTPException(status_code=400, detail={"error": "Prompt blocked by RouteGuard guardrails", "reasons": out["block_reasons"]})
+
+    if req.stream:
+        text_out = str(out.get("response") or out.get("output_text") or json.dumps(out.get("parsed_json") or out))
+        created = int(time.time())
+        model_id = str(out.get("model_id") or "routeguard-auto")
+
+        def _sse_iter() -> Iterator[str]:
+            words = text_out.split(" ")
+            for i in range(0, max(1, len(words)), 6):
+                chunk_str = " ".join(words[i:i + 6]) + (" " if i + 6 < len(words) else "")
+                payload = {
+                    "id": f"chatcmpl-rg-{created}",
+                    "object": "chat.completion.chunk",
+                    "created": created,
+                    "model": model_id,
+                    "choices": [{"index": 0, "delta": {"content": chunk_str}, "finish_reason": None}],
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
+            done_payload = {
+                "id": f"chatcmpl-rg-{created}",
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": model_id,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            }
+            yield f"data: {json.dumps(done_payload)}\n\n"
+            yield "data: [DONE]\n\n"
+
+        headers = {
+            "X-RouteGuard-Tier": str(out.get("tier_selected") or ""),
+            "X-RouteGuard-Cost-USD": str(out.get("cost_usd") or 0.0),
+            "Cache-Control": "no-cache",
+        }
+        return StreamingResponse(_sse_iter(), media_type="text/event-stream", headers=headers)
     return out
 
 

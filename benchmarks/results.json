@@ -12,14 +12,145 @@
   "injection_block_rate_pct": 100.0,
   "pii_redaction_rate_pct": 100.0,
   "repeat_cache_hits": 14,
-  "p50_latency_ms": 11.34,
-  "p95_latency_ms": 33.14,
+  "p50_latency_ms": 5.3,
+  "p95_latency_ms": 20.84,
   "circuit_breaker_failover_verified": true,
-  "runtime_seconds": 9.046,
+  "runtime_seconds": 7.822,
   "tier_distribution": {
     "tier1_fast": 47,
     "blocked": 6,
     "tier3_frontier": 10,
     "tier2_balanced": 12
-  }
+  },
+  "routerbench_ood": {
+    "dataset": "withmartian/routerbench (0-shot stratified slice)",
+    "train_cases": 800,
+    "test_cases": 400,
+    "tasks": [
+      "arc-challenge",
+      "grade-school-math",
+      "hellaswag",
+      "mbpp",
+      "mmlu-elementary-mathematics",
+      "mmlu-high-school-macroeconomics",
+      "mmlu-professional-law",
+      "winogrande"
+    ],
+    "baselines": {
+      "mistralai/mistral-7b-chat": {
+        "accuracy_pct": 34.88,
+        "total_cost_usd": 0.015792,
+        "avg_cost_usd": 3.9e-05
+      },
+      "mistralai/mixtral-8x7b-chat": {
+        "accuracy_pct": 51.94,
+        "total_cost_usd": 0.048034,
+        "avg_cost_usd": 0.00012
+      },
+      "gpt-3.5-turbo-1106": {
+        "accuracy_pct": 60.31,
+        "total_cost_usd": 0.08678,
+        "avg_cost_usd": 0.000217
+      },
+      "gpt-4-1106-preview": {
+        "accuracy_pct": 79.5,
+        "total_cost_usd": 1.32521,
+        "avg_cost_usd": 0.003313
+      }
+    },
+    "pareto_sweep": [
+      {
+        "margin_threshold": 0.0,
+        "accuracy_pct": 61.25,
+        "accuracy_retention_vs_gpt4_pct": 77.04,
+        "total_cost_usd": 0.534072,
+        "cost_savings_vs_gpt4_pct": 59.7,
+        "escalated_count": 0,
+        "tier_counts": {
+          "mistralai/mixtral-8x7b-chat": 227,
+          "gpt-3.5-turbo-1106": 92,
+          "gpt-4-1106-preview": 81
+        }
+      },
+      {
+        "margin_threshold": 0.15,
+        "accuracy_pct": 64.0,
+        "accuracy_retention_vs_gpt4_pct": 80.5,
+        "total_cost_usd": 0.630032,
+        "cost_savings_vs_gpt4_pct": 52.46,
+        "escalated_count": 186,
+        "tier_counts": {
+          "mistralai/mixtral-8x7b-chat": 122,
+          "gpt-3.5-turbo-1106": 140,
+          "gpt-4-1106-preview": 138
+        }
+      },
+      {
+        "margin_threshold": 0.25,
+        "accuracy_pct": 66.5,
+        "accuracy_retention_vs_gpt4_pct": 83.65,
+        "total_cost_usd": 0.665575,
+        "cost_savings_vs_gpt4_pct": 49.78,
+        "escalated_count": 270,
+        "tier_counts": {
+          "mistralai/mixtral-8x7b-chat": 63,
+          "gpt-3.5-turbo-1106": 178,
+          "gpt-4-1106-preview": 159
+        }
+      },
+      {
+        "margin_threshold": 0.35,
+        "accuracy_pct": 67.5,
+        "accuracy_retention_vs_gpt4_pct": 84.91,
+        "total_cost_usd": 0.705527,
+        "cost_savings_vs_gpt4_pct": 46.76,
+        "escalated_count": 316,
+        "tier_counts": {
+          "mistralai/mixtral-8x7b-chat": 29,
+          "gpt-3.5-turbo-1106": 200,
+          "gpt-4-1106-preview": 171
+        }
+      },
+      {
+        "margin_threshold": 0.45,
+        "accuracy_pct": 76.0,
+        "accuracy_retention_vs_gpt4_pct": 95.6,
+        "total_cost_usd": 1.101332,
+        "cost_savings_vs_gpt4_pct": 16.89,
+        "escalated_count": 334,
+        "tier_counts": {
+          "mistralai/mixtral-8x7b-chat": 14,
+          "gpt-3.5-turbo-1106": 58,
+          "gpt-4-1106-preview": 328
+        }
+      },
+      {
+        "margin_threshold": 0.55,
+        "accuracy_pct": 77.0,
+        "accuracy_retention_vs_gpt4_pct": 96.86,
+        "total_cost_usd": 1.105584,
+        "cost_savings_vs_gpt4_pct": 16.57,
+        "escalated_count": 348,
+        "tier_counts": {
+          "mistralai/mixtral-8x7b-chat": 2,
+          "gpt-3.5-turbo-1106": 68,
+          "gpt-4-1106-preview": 330
+        }
+      }
+    ],
+    "recommended_operating_point": {
+      "margin_threshold": 0.25,
+      "accuracy_pct": 66.5,
+      "accuracy_retention_vs_gpt4_pct": 83.65,
+      "total_cost_usd": 0.665575,
+      "cost_savings_vs_gpt4_pct": 49.78,
+      "escalated_count": 270,
+      "tier_counts": {
+        "mistralai/mixtral-8x7b-chat": 63,
+        "gpt-3.5-turbo-1106": 178,
+        "gpt-4-1106-preview": 159
+      }
+    }
+  },
+  "pareto_png": "D:\\Ai job finder\\portfolio\\routeguard-llm\\docs\\assets\\routeguard_pareto.png"
 }

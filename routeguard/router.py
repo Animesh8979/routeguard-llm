@@ -141,23 +141,40 @@ class HybridComplexityRouter:
             r"\b(?:extract|receipt|invoice|classify|triage|ticket|sentiment|route|tag|parse)\b"
         )
 
-        # Evaluate classifier probability
+        # Evaluate classifier probability, Shannon entropy, and top-2 probability margin
         probs = self.clf.predict_proba(self.vectorizer.transform([low]))[0]
         class_probs = {cls: float(p) for cls, p in zip(self.clf.classes_, probs)}
+        sorted_probs = sorted(probs, reverse=True)
+        p_top1 = float(sorted_probs[0]) if len(sorted_probs) > 0 else 1.0
+        p_top2 = float(sorted_probs[1]) if len(sorted_probs) > 1 else 0.0
+        confidence_margin = round(p_top1 - p_top2, 4)
+        import math
+        entropy = round(-sum(float(p) * math.log(max(float(p), 1e-12)) for p in probs), 4)
         pred = max(class_probs, key=class_probs.get)
 
         word_count = len(low.split())
+        rule_matched = False
         if complex_rx.search(low) or (word_count >= 55 and "compare" in low and "trade" in low):
             label = "complex"
+            rule_matched = True
         elif sql_code_rx.search(low) and not simple_rx.search(low):
             label = "moderate"
+            rule_matched = True
         elif has_schema and simple_rx.search(low) and word_count < 85:
             label = "simple"
+            rule_matched = True
         else:
             label = pred
 
         elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 3)
-        return label, {"complexity_label": label, "class_probs": {k: round(v, 3) for k, v in class_probs.items()}, "router_ms": elapsed_ms}
+        return label, {
+            "complexity_label": label,
+            "class_probs": {k: round(v, 3) for k, v in class_probs.items()},
+            "confidence_margin": confidence_margin,
+            "entropy": entropy,
+            "rule_matched": rule_matched,
+            "router_ms": elapsed_ms,
+        }
 
     def select_tier(
         self,
@@ -167,12 +184,14 @@ class HybridComplexityRouter:
         tenant_spent_usd: float = 0.0,
         has_schema: bool = False,
         force_tier: str | None = None,
+        uncertainty_margin_threshold: float = 0.15,
     ) -> dict[str, Any]:
         cap = self.tenant_daily_caps.get(tenant_id)
         if cap is not None and tenant_spent_usd >= cap:
             raise BudgetExceededError(f"Tenant '{tenant_id}' reached daily USD cap ({tenant_spent_usd:.6f} >= {cap:.6f})")
 
         label, meta = self._raw_complexity(prompt, has_schema=has_schema)
+        uncertainty_escalated = False
         if force_tier in MODEL_TIERS:
             desired: TierName = force_tier  # type: ignore[assignment]
         elif label == "complex":
@@ -181,6 +200,17 @@ class HybridComplexityRouter:
             desired = "tier2_balanced"
         else:
             desired = "tier1_fast"
+
+        # Entropy-margin abstention gate: low confidence margin without deterministic pattern -> escalate tier1_fast safely
+        if (
+            force_tier is None
+            and not meta.get("rule_matched")
+            and not has_schema
+            and desired == "tier1_fast"
+            and float(meta.get("confidence_margin", 1.0)) < float(uncertainty_margin_threshold)
+        ):
+            desired = "tier2_balanced"
+            uncertainty_escalated = True
 
         # Soft budget downgrade at >= 85% daily cap
         budget_downgraded = False
@@ -209,5 +239,6 @@ class HybridComplexityRouter:
             "model_id": spec.model_id,
             "failover_used": failover_used,
             "budget_downgraded": budget_downgraded,
+            "uncertainty_escalated": uncertainty_escalated,
             **meta,
         }

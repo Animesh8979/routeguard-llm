@@ -25,22 +25,37 @@ flowchart LR
 
 ## Verified Benchmark Results (60-Case Golden Eval + 15 Cache Probes)
 
-Generated cleanly on fresh state by [`benchmarks/run_benchmark.py`](benchmarks/run_benchmark.py) modeling Tier-1 JSON failure modes and HTTP 429 provider faults:
+Generated cleanly by [`benchmarks/run_benchmark.py`](benchmarks/run_benchmark.py) across BOTH (A) an **800-train / 400-test stratified slice of the public [`withmartian/routerbench`](https://huggingface.co/datasets/withmartian/routerbench) dataset** (8 reasoning, math, coding & QA benchmarks) and (B) the 60-case deterministic guardrail & schema-repair regression suite:
+
+![RouteGuard Pareto Frontier](docs/assets/routeguard_pareto.png)
+
+### Public Dataset Out-of-Distribution Evaluation (`withmartian/routerbench`, $n = 400$ Held-Out)
+
+| Router Policy / Model | Held-Out Accuracy | Accuracy Retention vs GPT-4 | Cost vs Always-GPT-4 |
+|---|---:|---:|---:|
+| Always `mistralai/mistral-7b-chat` | 34.88% | 43.87% | **-98.81%** (`$0.0158`) |
+| Always `mistralai/mixtral-8x7b-chat` | 51.94% | 65.33% | **-96.38%** (`$0.0480`) |
+| Always `gpt-3.5-turbo-1106` | 60.31% | 75.86% | **-93.45%** (`$0.0868`) |
+| **RouteGuard (`margin=0.00` classifier only)** | **61.25%** | **77.04%** | **-59.70%** (`$0.5341`) |
+| **RouteGuard (`margin=0.25` balanced escalation)** | **66.50%** | **83.65%** | **-49.78%** (`$0.6656`) |
+| **RouteGuard (`margin=0.45` high-retention)** | **76.00%** | **95.60%** | **-16.89%** (`$1.1013`) |
+| Always `gpt-4-1106-preview` (Frontier Baseline) | 79.50% | 100.00% | `0.00%` (`$1.3252`) |
+
+### Deterministic Guardrail, Repair & Proxy CI Suite (`60` Golden Cases + `15` Cache Probes)
 
 | Metric | Measured Value |
 |---|---:|
-| Golden Eval Suite (+ Cache Repeat Probes) | **60** (+**15** repeat queries = **75** total) |
-| Cost Reduction vs Always-Frontier Baseline | **76.68%** (`$0.009635` vs `$0.041313`) |
-| Complexity Tier Routing Accuracy | **100.00%** (`60/60`) |
-| Schema Validity (Cold Tier-1 -> Self-Healed) | **50.00%** -> **100.00%** (`16` repairs executed) |
+| Cost Reduction on Guardrail Proxy Workload | **76.68%** (`$0.009635` vs `$0.041313`) |
+| Deterministic Tier Rule Accuracy (Synthetic Suite) | **100.00%** (`60/60`) |
+| Schema Validity (Cold Tier-1 -> Self-Healed Pydantic v2) | **50.00%** -> **100.00%** (`16` repairs executed) |
 | Prompt-Injection Block & PII Redaction Rate | **100.00%** / **100.00%** |
 | Repeat Semantic Cache Hit Rate | **14 / 15** |
-| Proxy Median / p95 Request Latency | **11.34 ms** / **33.14 ms** |
-| Automatic HTTP 429 Circuit-Breaker Failover | **Verified (`True`)** |
+| Proxy Median / p95 Request Latency | **5.15 ms** / **59.30 ms** |
+| OpenAI SSE Streaming (`stream=True`) & 429 Failover | **Verified (`31/31` Pytest Pass)** |
 
 ---
 
-## Security Hardening & Red-Team Chaos Backtest (`28/28` Pytest Pass)
+## Security Hardening & Red-Team Chaos Backtest (`31/31` Pytest Pass)
 
 Audited under [`tests/test_security_redteam.py`](tests/test_security_redteam.py):
 
@@ -66,10 +81,10 @@ Audited under [`tests/test_security_redteam.py`](tests/test_security_redteam.py)
 # 1. Install editable package and dev dependencies
 pip install -e ".[dev]"
 
-# 2. Run all 28 core + security/red-team chaos tests
+# 2. Run all 31 core, RouterBench OOD, SSE streaming & security tests
 pytest -v
 
-# 3. Run 60-case benchmark + failover report
+# 3. Run public RouterBench OOD + 60-case proxy benchmark + Pareto chart generation
 python benchmarks/run_benchmark.py
 
 # 4. Launch OpenAI-compatible proxy and Streamlit cockpit
