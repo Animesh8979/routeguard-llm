@@ -22,5 +22,5 @@ jobs:
         run: python -m py_compile routeguard/*.py api/*.py dashboard/*.py benchmarks/*.py tests/*.py
       - name: Run unit, circuit breaker, and eval harness tests
         run: pytest -v
-      - name: Run 60-case regression benchmark
+      - name: Run RouterBench OOD & guardrail benchmark
         run: python benchmarks/run_benchmark.py --out-dir data_runtime/bench_ci

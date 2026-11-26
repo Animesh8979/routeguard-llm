@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "routeguard-llm"
 version = "0.1.0"
-description = "Deterministic LLM cost-routing proxy with Pydantic v2 self-healing schema repair, semantic WAL cache, circuit breakers, and 60-case regression harness"
+description = "OpenAI-compatible FastAPI LLM cost-routing proxy with SSE streaming, entropy-margin routing, Pydantic v2 schema repair, WAL semantic cache & RouterBench OOD eval"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
@@ -20,6 +20,7 @@ dependencies = [
     "pandas>=2.2",
     "scikit-learn>=1.4",
     "streamlit>=1.32",
+    "pillow>=10.0",
 ]
 
 [project.optional-dependencies]
